@@ -3,11 +3,11 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 import timm
-from pathlib import Path
 from app.config import MODEL_NAME, WEIGHTS_PATH
 from app.labels import LABEL_COLS
 
@@ -50,6 +50,23 @@ def _strip_module_prefix(state_dict: Mapping[str, torch.Tensor]) -> dict[str, to
     return cleaned_state_dict
 
 
+def _load_checkpoint(path: Path, device: str) -> object:
+    try:
+        return torch.load(path, map_location=device, weights_only=True)
+    except TypeError:
+        logger.warning(
+            "torch.load(weights_only=True) is not supported in this torch version. "
+            "Falling back to weights_only=False for compatibility."
+        )
+        return torch.load(path, map_location=device)
+    except Exception as exc:
+        logger.warning(
+            "weights_only=True load failed (%s). Retrying with weights_only=False for compatibility.",
+            exc,
+        )
+        return torch.load(path, map_location=device, weights_only=False)
+
+
 def load_model(device: str) -> LoadedModel:
     model = ConvNextModel(num_classes=len(LABEL_COLS), pretrained=False)
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
@@ -63,7 +80,7 @@ def load_model(device: str) -> LoadedModel:
         return LoadedModel(model=None, model_loaded=False)
 
     try:
-        checkpoint = torch.load(WEIGHTS_PATH, map_location=device)
+        checkpoint = _load_checkpoint(WEIGHTS_PATH, device)
         state_dict = _strip_module_prefix(_extract_state_dict(checkpoint))
         model.load_state_dict(state_dict, strict=True)
         model.to(device)

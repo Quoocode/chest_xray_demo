@@ -6,12 +6,15 @@ services:
       - "8000:8000"
     environment:
       ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      MODEL_PATH: /app/weights/best_convnext_model.pth
     volumes:
-      - ./backend/weights:/app/weights
+      - ./backend/weights:/app/weights:ro
 
   frontend:
     build:
       context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:
       - "3000:3000"
     environment:
